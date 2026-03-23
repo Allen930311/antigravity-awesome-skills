@@ -1,10 +1,10 @@
-# 📖 Usage Guide: How to Actually Use These Skills
+# Usage Guide: How to Actually Use These Skills
 
 > **Confused after installation?** This guide walks you through exactly what to do next, step by step.
 
 ---
 
-## 🤔 "I just installed the repository. Now what?"
+## "I just installed the repository. Now what?"
 
 Great question! Here's what just happened and what to do next:
 
@@ -12,7 +12,7 @@ Great question! Here's what just happened and what to do next:
 
 When you ran `npx antigravity-awesome-skills` or cloned the repository, you:
 
-✅ **Downloaded 1,204+ skill files** to your computer (default: `~/.gemini/antigravity/skills/`; or `~/.agent/skills/` if you used `--path`)  
+✅ **Downloaded 1,306+ skill files** to your computer (default: `~/.gemini/antigravity/skills/`; or a custom path like `~/.agent/skills/` if you used `--path`)  
 ✅ **Made them available** to your AI assistant  
 ❌ **Did NOT enable them all automatically** (they're just sitting there, waiting)
 
@@ -20,7 +20,7 @@ Think of it like installing a toolbox. You have all the tools now, but you need 
 
 ---
 
-## 🎯 Step 1: Understanding "Bundles" (This is NOT Another Install!)
+## Step 1: Understanding "Bundles" (This is NOT Another Install!)
 
 **Common confusion:** "Do I need to download each skill separately?"
 
@@ -32,7 +32,7 @@ Bundles are **recommended lists** of skills grouped by role. They help you decid
 
 **Analogy:**
 
-- You installed a toolbox with 1,204+ tools (✅ done)
+- You installed a toolbox with 1,306+ tools (✅ done)
 - Bundles are like **labeled organizer trays** saying: "If you're a carpenter, start with these 10 tools"
 - You don't install bundles—you **pick skills from them**
 
@@ -40,7 +40,7 @@ Bundles are **recommended lists** of skills grouped by role. They help you decid
 
 ❌ Separate installations  
 ❌ Different download commands  
-❌ Something you need to "activate"
+❌ Something most users need to activate during normal install
 
 ### Example: The "Web Wizard" Bundle
 
@@ -55,7 +55,7 @@ These are **recommendations** for which skills a web developer should try first.
 
 ---
 
-## 🚀 Step 2: How to Actually Execute/Use a Skill
+## Step 2: How to Actually Execute/Use a Skill
 
 This is the part that should have been explained better! Here's how to use skills:
 
@@ -106,7 +106,7 @@ Use @brainstorming to plan this feature
 
 ---
 
-## 💬 Step 3: What Should My Prompts Look Like?
+## Step 3: What Should My Prompts Look Like?
 
 Here are **real-world examples** of good prompts:
 
@@ -162,7 +162,7 @@ Here are **real-world examples** of good prompts:
 
 ---
 
-## 🎓 Step 4: Your First Skill (Hands-On Tutorial)
+## Step 4: Your First Skill (Hands-On Tutorial)
 
 Let's actually use a skill right now. Follow these steps:
 
@@ -190,9 +190,16 @@ Let's actually use a skill right now. Follow these steps:
 
 ---
 
-## 🗂️ Step 5: Picking Your First Skills (Practical Advice)
+## Step 5: Picking Your First Skills (Practical Advice)
 
-Don't try to use all 1,204+ skills at once. Here's a sensible approach:
+Don't try to use all 1,306+ skills at once. Here's a sensible approach:
+
+If you want a tool-specific starting point before choosing skills, use:
+
+- [Claude Code skills](claude-code-skills.md)
+- [Cursor skills](cursor-skills.md)
+- [Codex CLI skills](codex-cli-skills.md)
+- [Gemini CLI skills](gemini-cli-skills.md)
 
 ### Start with "The Essentials" (5 skills, everyone needs these)
 
@@ -235,7 +242,7 @@ Keep the [CATALOG.md](../../CATALOG.md) open as reference. When you need somethi
 
 ---
 
-## 🔄 Complete Example: Building a Feature End-to-End
+## Complete Example: Building a Feature End-to-End
 
 Let's walk through a realistic scenario:
 
@@ -287,7 +294,7 @@ AI: [Creates tests, sets up CI/CD, deploys to Vercel]
 
 ---
 
-## 🆘 Common Questions
+## Common Questions
 
 ### "Which tool should I use? Claude Code, Cursor, Gemini?"
 
@@ -303,7 +310,7 @@ AI: [Creates tests, sets up CI/CD, deploys to Vercel]
 Yes! Three ways:
 
 1. Browse [CATALOG.md](../../CATALOG.md) (searchable list)
-2. Run `ls ~/.agent/skills/` (if installed there)
+2. Run `ls ~/.gemini/antigravity/skills/` (or your actual install path)
 3. Ask your AI: "What skills do you have for [topic]?"
 
 ### "Do I need to restart my IDE after installing?"
@@ -313,6 +320,19 @@ Usually no, but if your AI doesn't recognize a skill:
 1. Try restarting your IDE/CLI
 2. Check the installation path matches your tool
 3. Try the explicit path: `npx antigravity-awesome-skills --claude` (or `--cursor`, `--gemini`, etc.)
+
+### "Can I load all skills into the model at once?"
+
+No. Even though you have 1,306+ skills installed locally, you should **not** concatenate every `SKILL.md` into a single system prompt or context block.
+
+The intended pattern is:
+
+- use `data/skills_index.json` (the manifest) to discover which skills exist; and
+- only load the `SKILL.md` files for the specific `@skill-id` values you actually use in a conversation.
+
+If you are building your own host/agent (e.g. Jetski/Cortex + Gemini), see:
+
+- [`docs/integrations/jetski-cortex.md`](../integrations/jetski-cortex.md)
 
 ### "Can I create my own skills?"
 
@@ -324,13 +344,13 @@ Use @skill-creator to help me build a custom skill for [your task]
 
 ### "What if a skill doesn't work as expected?"
 
-1. Check the skill's SKILL.md file directly: `~/.agent/skills/[skill-name]/SKILL.md`
+1. Check the skill's `SKILL.md` file directly in your installed path, for example: `~/.gemini/antigravity/skills/[skill-name]/SKILL.md`
 2. Read the description to ensure you're using it correctly
 3. [Open an issue](https://github.com/sickn33/antigravity-awesome-skills/issues) with details
 
 ---
 
-## 🎯 Quick Reference Card
+## Quick Reference Card
 
 **Save this for quick lookup:**
 
@@ -346,7 +366,7 @@ Use @skill-creator to help me build a custom skill for [your task]
 
 ---
 
-## 🚦 Next Steps
+## Next Steps
 
 Now that you understand how to use skills:
 
@@ -357,7 +377,7 @@ Now that you understand how to use skills:
 
 ---
 
-## 💡 Pro Tips for Maximum Effectiveness
+## Pro Tips for Maximum Effectiveness
 
 ### Tip 1: Start Every Feature with @brainstorming
 
@@ -382,7 +402,7 @@ Now that you understand how to use skills:
 
 ---
 
-## 📞 Still Confused?
+## Still Confused?
 
 If something still doesn't make sense:
 

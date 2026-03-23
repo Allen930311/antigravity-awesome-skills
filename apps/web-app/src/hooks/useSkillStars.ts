@@ -65,10 +65,10 @@ export function useSkillStars(skillId: string | undefined): UseSkillStarsReturn 
             .from('skill_stars')
             .select('star_count')
             .eq('skill_id', skillId)
-            .single();
+            .maybeSingle();
 
           if (!error && data) {
-            setStarCount(data.star_count);
+            setStarCount(data.star_count + (userStars[skillId] ? 1 : 0));
           }
         } catch (err) {
           console.warn('Failed to fetch star count:', err);
@@ -81,7 +81,7 @@ export function useSkillStars(skillId: string | undefined): UseSkillStarsReturn 
 
   /**
    * Handle star button click
-   * Prevents double-starring, updates optimistically, syncs to Supabase
+   * Prevents double-starring, updates optimistically, persists local state
    */
   const handleStarClick = useCallback(async () => {
     if (!skillId || isLoading) return;
@@ -100,53 +100,8 @@ export function useSkillStars(skillId: string | undefined): UseSkillStarsReturn 
       // Persist to localStorage
       const updatedStars = { ...userStars, [skillId]: true };
       saveUserStarsToStorage(updatedStars);
-
-      // Sync to Supabase if available
-      if (supabase) {
-        const { data: existingData, error: fetchError } = await supabase
-          .from('skill_stars')
-          .select('star_count')
-          .eq('skill_id', skillId)
-          .single();
-
-        if (fetchError && fetchError.code !== 'PGRST116') {
-          // PGRST116 = not found, which is expected for new skills
-          console.warn('Failed to fetch existing star count:', fetchError);
-        }
-
-        if (existingData) {
-          // Update existing record
-          const { error: updateError } = await supabase
-            .from('skill_stars')
-            .update({ star_count: existingData.star_count + 1 })
-            .eq('skill_id', skillId);
-
-          if (updateError) {
-            console.warn('Failed to update star count:', updateError);
-          }
-        } else {
-          // Insert new record
-          const { error: insertError } = await supabase
-            .from('skill_stars')
-            .insert({ skill_id: skillId, star_count: 1 });
-
-          if (insertError) {
-            console.warn('Failed to insert star count:', insertError);
-          }
-        }
-      }
     } catch (error) {
-      // Rollback optimistic update on error
       console.error('Failed to star skill:', error);
-      setStarCount(prev => Math.max(0, prev - 1));
-      setHasStarred(false);
-
-      // Remove from localStorage on error
-      const userStars = getUserStarsFromStorage();
-      if (userStars[skillId]) {
-        const { [skillId]: _, ...rest } = userStars;
-        saveUserStarsToStorage(rest);
-      }
     } finally {
       setIsLoading(false);
     }

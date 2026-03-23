@@ -35,11 +35,17 @@ If you touch **any of these**:
 - Running `npm run chain` is **NOT optional**.
 - Running `npm run catalog` is **NOT optional**.
 
-If CI fails with:
+For contributor PRs, the contract is now **source-only**:
+
+- contributors should not commit `CATALOG.md`, `skills_index.json`, or `data/*.json`
+- PR CI previews generated drift but does not require those files in the branch
+- `main` remains the only canonical owner of derived registry artifacts
+
+If `main` CI fails with:
 
 > `❌ Detected uncommitted changes produced by registry/readme/catalog scripts.`
 
-it means you **did not run or commit** the Validation Chain correctly.
+it means the repository could not auto-sync generated artifacts cleanly and maintainer intervention is required.
 
 ### 3. 📝 EVIDENCE OF WORK
 
@@ -74,12 +80,32 @@ Before ANY commit that adds/modifies skills, run the chain:
     npm run catalog
     ```
 
-3.  **COMMIT GENERATED FILES**:
+3.  **Optional maintainer sweep shortcut**:
     ```bash
-    git add README.md skills_index.json data/catalog.json data/bundles.json data/aliases.json CATALOG.md
+    npm run sync:repo-state
+    ```
+    This wraps `chain + catalog + sync:web-assets + sync:contributors + audit:consistency` for a full local repo-state refresh.
+    The scheduled GitHub Actions workflow `Repo Hygiene` runs this same sweep weekly to catch slow drift on `main`.
+    It also enforces the frozen validation warning budget, so new warnings do not creep in silently while the legacy `135` known warnings remain accepted.
+
+    When you need the live GitHub repo metadata updated too, run:
+
+    ```bash
+    npm run sync:github-about
+    npm run audit:consistency:github
+    ```
+    For a read-only summary of current repo health, run:
+    ```bash
+    npm run audit:maintainer
+    ```
+
+4.  **COMMIT GENERATED FILES**:
+    ```bash
+    git add README.md skills_index.json data/skills_index.json data/catalog.json data/bundles.json data/aliases.json CATALOG.md
     git commit -m "chore: sync generated files"
     ```
-    > 🔴 **CRITICAL**: If you skip this, CI will fail with "Detected uncommitted changes".
+    > 🔴 **CRITICAL for direct `main` work**: If you skip this on maintainer work that lands directly on `main`, CI will fail with "Detected uncommitted changes".
+    > For contributor PRs, do **not** include derived registry artifacts. CI blocks direct edits to those files and previews drift separately.
     > See [`docs/maintainers/ci-drift-fix.md`](../docs/maintainers/ci-drift-fix.md) for details.
 
 ### B. When You Merge a PR (Step-by-Step)
@@ -88,16 +114,44 @@ Before ANY commit that adds/modifies skills, run the chain:
 
 **Before merging:**
 
-1.  **CI is green** — Validation, reference checks, tests, and generated artifact steps passed (see [`.github/workflows/ci.yml`](workflows/ci.yml)).
-2.  **No drift** — PR does not introduce uncommitted generated-file changes; if the "Check for Uncommitted Drift" step failed, ask the author to run `npm run chain` and `npm run catalog` and commit the result.
+1.  **CI is green** — Validation, reference checks, tests, and generated artifact steps passed (see [`.github/workflows/ci.yml`](workflows/ci.yml)). If the PR changes any `SKILL.md`, the separate [`skill-review` workflow](workflows/skill-review.yml) must also be green.
+2.  **Generated drift understood** — On pull requests, generator drift is informational only. Do not block a good PR solely because canonical artifacts would be regenerated. Also do not accept PRs that directly edit `CATALOG.md`, `skills_index.json`, or `data/*.json`; those files are `main`-owned.
 3.  **Quality Bar** — PR description confirms the [Quality Bar Checklist](.github/PULL_REQUEST_TEMPLATE.md) (metadata, risk label, credits if applicable).
 4.  **Issue link** — If the PR fixes an issue, the PR description should contain `Closes #N` or `Fixes #N` so GitHub auto-closes the issue on merge.
 
 **How you merge:**
 
 - **Always merge via GitHub** so the PR shows as **Merged** and the contributor gets credit. Use **"Squash and merge"**. Do **not** integrate locally and then close the PR — that would show "Closed" and the contributor would not get proper attribution.
-- **If the PR has merge conflicts:** Resolve them **on the PR branch** (you or the contributor: merge `main` into the PR branch, fix conflicts, run `npm run chain` and `npm run catalog` if needed, push). Then use **"Squash and merge"** on GitHub. Full steps: [docs/maintainers/merging-prs.md](../docs/maintainers/merging-prs.md).
+- **If the PR has merge conflicts:** Resolve them **on the PR branch** (you or the contributor: merge `main` into the PR branch, fix conflicts, drop derived registry files from the branch if they appear, push). For generated registry files, prefer keeping `main`'s side rather than hand-editing conflicts. Then use **"Squash and merge"** on GitHub. Full steps: [docs/maintainers/merging-prs.md](../docs/maintainers/merging-prs.md).
 - **Rare exception:** Only if merging via GitHub is not possible, you may integrate locally and close the PR; in that case you **must** add a Co-authored-by line to the commit and explain in a comment. Prefer to avoid this so PRs are always **Merged**.
+
+**If CI is blocked on fork approval or stale PR metadata:**
+
+This happens regularly on community PRs from forks. The common symptoms are:
+
+- `gh pr checks` shows `no checks reported` even though Actions runs exist.
+- `gh run list` shows `action_required` with `jobs: []` for `Skills Registry CI` or `Skill Review`.
+- `pr-policy` fails with `PR body must include the Quality Bar Checklist from the template.` even after you corrected the PR body and hit rerun.
+
+Use this playbook:
+
+1.  **Approve waiting fork runs** using the run id(s) from `gh run list`:
+    ```bash
+    gh api -X POST repos/<OWNER>/<REPO>/actions/runs/<RUN_ID>/approve
+    ```
+2.  **Normalize the PR body** so it includes the repository template's `## Quality Bar Checklist ✅` section. If `gh pr edit` works, use it. If `gh pr edit` fails with the GraphQL `projectCards` / Projects Classic deprecation error, patch the PR body through the REST API instead:
+    ```bash
+    gh api repos/<OWNER>/<REPO>/pulls/<PR_NUMBER> -X PATCH --input <(jq -n --rawfile body /tmp/pr_body.md '{body:$body}')
+    ```
+3.  **Do not trust a plain rerun** to pick up the updated PR body. In practice, `gh run rerun <RUN_ID>` may re-use the original `pull_request` event payload, so `pr-policy` can keep reading the stale body and fail again.
+4.  **If the rerun still sees stale metadata, close and reopen the PR** to force a fresh `pull_request` event:
+    ```bash
+    gh pr close <PR_NUMBER> --comment "Maintainer workflow refresh: closing and reopening to retrigger pull_request checks against the updated PR body."
+    gh pr reopen <PR_NUMBER>
+    ```
+5.  **Approve the newly created fork runs** after reopen. They will usually appear as a fresh pair of `action_required` runs for `Skills Registry CI` and `Skill Review`.
+6.  **Wait for the new checks only.** You may see older failed `pr-policy` runs in the rollup alongside newer green runs. Merge only after the fresh run set for the current PR state is fully green: `pr-policy`, `source-validation`, `artifact-preview`, and `review` when `SKILL.md` changed.
+7.  **If `gh pr merge` says `Base branch was modified`**, refresh the PR state and retry. This is normal when you are merging a batch and `main` moved between attempts.
 
 **If a PR was closed after local integration (reopen and merge):**
 
@@ -113,8 +167,8 @@ If a PR was integrated via local squash and then **closed** (so it shows "Closed
     ```bash
     git merge origin/main -m "chore: merge main to resolve conflicts"
     ```
-    For conflicts in generated/registry files (`README.md`, `CATALOG.md`, `data/catalog.json`, etc.), keep **main's version**:  
-    `git checkout --theirs README.md CATALOG.md data/catalog.json` (and any other conflicted files), then `git add` them.
+    For conflicts in generated/registry files (`CATALOG.md`, `data/catalog.json`, etc.), keep **main's version** and remove those derived files from the PR branch:
+    `git checkout --theirs CATALOG.md data/catalog.json` (and any other derived files), then `git add` them.
 4.  **Commit the merge** (if not already done):  
     `git commit -m "chore: merge main to resolve conflicts" --no-edit`
 5.  **Push to the contributor's fork.** Add their fork as a remote if needed (replace `USER` and `BRANCH` with the PR head owner and branch from the PR page):
@@ -145,8 +199,9 @@ We used this flow for PRs [#220](https://github.com/sickn33/antigravity-awesome-
 After you have merged several PRs or before cutting a release:
 
 1.  **Sync Contributors List**:
-    - Run: `git shortlog -sn --all`
-    - Update `## Repo Contributors` in README.md.
+    - Run: `npm run sync:contributors`
+    - This refreshes `## Repo Contributors` in `README.md` from the live GitHub contributor list while preserving custom bot/app links.
+    - If you are already doing a full maintainer sweep, prefer `npm run sync:repo-state`.
 
 2.  **Verify Table of Contents**:
     - Ensure all new headers have clean anchors.
@@ -224,7 +279,7 @@ Rules:
 
 ## 3. 🛡️ Governance & Quality Bar
 
-### A. The 5-Point Quality Check
+### A. The 6-Point Quality Check
 
 Reject any PR that fails this:
 
@@ -232,7 +287,8 @@ Reject any PR that fails this:
 2.  **Safety**: `risk: offensive` used for red-team tools?
 3.  **Clarity**: Does it say _when_ to use it?
 4.  **Examples**: Copy-pasteable code blocks?
-5.  **Limitations / Safety Notes**: Edge cases and risk boundaries are stated clearly.
+5.  **Risk Limits**: If the skill includes shell/network/filesystem/mutation guidance, instructions include explicit prerequisites and warnings.
+6.  **Repo Security Scan**: Run `npm run security:docs` for command-heavy, network-execution, or token-like guidance in `SKILL.md`.
 
 ### B. Risk Labels (V4)
 
@@ -247,27 +303,25 @@ Reject any PR that fails this:
 When cutting a new version, follow the maintainer playbook in [`docs/maintainers/release-process.md`](../docs/maintainers/release-process.md).
 
 **Release checklist (order matters):**  
-Operational verification → Changelog → Bump `package.json` (and README if needed) → Commit & push → Create GitHub Release with tag matching `package.json` → npm publish (manual or via CI) → Close remaining linked issues.
+Preflight verification → Changelog → `npm run release:prepare -- X.Y.Z` → `npm run release:publish -- X.Y.Z` → npm publish (manual or via CI) → Close remaining linked issues.
 
 ---
 
 1.  **Run release verification**:
     ```bash
-    npm run validate
-    npm run validate:references
-    npm run sync:all
-    npm run test
-    npm run app:build
+    npm run release:preflight
     ```
+    This now runs the deterministic `sync:release-state` path, refreshes tracked web assets, executes the local test suite, runs the web-app build, and performs `npm pack --dry-run --json` before a release is considered healthy.
     Optional diagnostic pass:
     ```bash
     npm run validate:strict
     ```
 2.  **Update Changelog**: Add the new release section to `CHANGELOG.md`.
-3.  **Bump Version**:
-    - Update `package.json` → `"version": "X.Y.Z"` (source of truth for npm).
-    - Update version header in `README.md` if it displays the number.
-    - One-liner: `npm version patch` (or `minor`/`major`) — bumps `package.json` and creates a git tag; then amend if you need to tag after release.
+3.  **Prepare commit and tag locally**:
+    ```bash
+    npm run release:prepare -- X.Y.Z
+    ```
+    This validates the release, aligns versioned files, writes the release notes artifact, creates the release commit, and creates the local tag.
 4.  **Create GitHub Release** (REQUIRED):
 
     > ⚠️ **CRITICAL**: Pushing a tag (`git push --tags`) is NOT enough. You must create a **GitHub Release Object** for it to appear in the sidebar and trigger the NPM publish workflow.
@@ -275,12 +329,11 @@ Operational verification → Changelog → Bump `package.json` (and README if ne
     Use the GitHub CLI:
 
     ```bash
-    # Prepare release notes (copy the new section from CHANGELOG.md into docs/maintainers/release-process.md, or use CHANGELOG excerpt)
-    # Then create the tag AND the release page (tag must match package.json version, e.g. v4.1.0)
-    gh release create v4.0.0 --title "v4.0.0 - [Theme Name]" --notes-file docs/maintainers/release-process.md
+    npm run release:publish -- X.Y.Z
     ```
 
     **Important:** The release tag must match `package.json`'s version. The [Publish to npm](workflows/publish-npm.yml) workflow runs on **Release published** and will run `npm publish`; npm rejects republishing the same version.
+    Before publishing, that workflow re-runs `sync:release-state`, checks for canonical drift with `git diff --exit-code`, runs tests/docs security/web build, and performs `npm pack --dry-run --json`.
 
     _Or create the release manually via GitHub UI > Releases > Draft a new release, then publish._
 
@@ -298,6 +351,129 @@ Operational verification → Changelog → Bump `package.json` (and README if ne
       ```bash
       gh issue close <ID> --comment "Shipped in vX.Y.Z. See CHANGELOG.md and release notes."
       ```
+
+### GitHub Release Notes Requirements
+
+Every published GitHub Release should work as a discovery page, not just an internal changelog dump.
+
+Required rules:
+
+1. Put the user-facing tool language early:
+   - mention Claude Code, Cursor, Codex CLI, Gemini CLI, or the specific supported tools that matter for that release.
+2. Add a short "Start here" block near the top:
+   - install command
+   - link to `README.md#choose-your-tool`
+   - link to `README.md#best-skills-by-tool`
+   - link to `docs/users/bundles.md`
+   - link to `docs/users/workflows.md`
+3. Keep the first paragraph readable to someone arriving from Google or GitHub Releases.
+4. Prefer plain ASCII section headers in release notes.
+5. Do not rewrite historical releases in bulk. Improve the latest release and all future releases.
+
+### GitHub Release Notes Template
+
+Use this structure for the published GitHub Release object:
+
+```markdown
+## [X.Y.Z] - YYYY-MM-DD - "User-facing title"
+
+> Installable skill library update for Claude Code, Cursor, Codex CLI, Gemini CLI, Antigravity, and related AI coding assistants.
+
+Start here:
+
+- Install: `npx antigravity-awesome-skills`
+- Choose your tool: [README -> Choose Your Tool](https://github.com/sickn33/antigravity-awesome-skills#choose-your-tool)
+- Best skills by tool: [README -> Best Skills By Tool](https://github.com/sickn33/antigravity-awesome-skills#best-skills-by-tool)
+- Bundles: [docs/users/bundles.md](https://github.com/sickn33/antigravity-awesome-skills/blob/main/docs/users/bundles.md)
+- Workflows: [docs/users/workflows.md](https://github.com/sickn33/antigravity-awesome-skills/blob/main/docs/users/workflows.md)
+
+[Brief paragraph explaining what changed and who the release helps.]
+
+## New Skills
+
+- **skill-name** - user-facing summary
+
+## Improvements
+
+- **Area**: user-facing improvement summary
+
+## Who should care
+
+- **Claude Code users** ...
+- **Cursor users** ...
+- **Codex CLI users** ...
+- **Gemini CLI users** ...
+
+## Credits
+
+- **@username** for `skill-name`
+
+Upgrade now: `git pull origin main` to fetch the latest skills.
+```
+
+### Social Preview
+
+If you set a repository social preview image on GitHub, keep these rules:
+
+- focus on the core value proposition;
+- mention the primary supported tools when helpful;
+- avoid dense text or tiny unreadable logos;
+- refresh it when repository positioning changes materially.
+
+Manual upload path on GitHub:
+
+1. Open the repository on GitHub.
+2. Go to **Settings**.
+3. Open the **Social preview** section.
+4. Upload the image you want to use.
+
+### Pinned Discussion Template
+
+Canonical onboarding discussion:
+
+- Title: `Start here: best skills by tool`
+- Current live discussion: `https://github.com/sickn33/antigravity-awesome-skills/discussions/361`
+
+When refreshing or recreating the pinned onboarding discussion, keep this structure:
+
+~~~markdown
+If you are new to **Antigravity Awesome Skills**, start here instead of browsing all skills at random.
+
+## Install in 1 minute
+
+```bash
+npx antigravity-awesome-skills
+```
+
+## Best starting pages by tool
+
+- Claude Code
+- Cursor
+- Codex CLI
+- Gemini CLI
+
+## Start with a bundle
+
+- Bundles
+- Workflows
+- Getting started
+- Usage guide
+
+## Best starter skills for most users
+
+- `@brainstorming`
+- `@lint-and-validate`
+- `@systematic-debugging`
+- `@create-pr`
+- `@security-auditor`
+
+## Compare before you install
+
+- comparison pages
+- best-of pages
+~~~
+
+If GitHub does not support pinning via API, create/update the discussion programmatically if possible and pin it manually in the UI.
 
 ### When to Close an Issue
 
